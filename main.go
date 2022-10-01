@@ -85,8 +85,7 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 	for _, reading := range event.Readings {
 		// For this to work the image/jpeg & image/png packages must be imported to register their decoder
 		imageData, imageType, err := image.Decode(bytes.NewReader(reading.BinaryValue))
-		ctx.LoggingClient().Debugf("Data received %s :\n", reading.BinaryValue)
-
+		
 		if err != nil {
 			return false, errors.New("processImages: unable to decode image: " + err.Error())
 		}
