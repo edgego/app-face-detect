@@ -1,15 +1,14 @@
 package main
 
 import (
-	"encoding/base64"
-	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
-	"image"
-	"strings"
-
-	//"errors"
+	"bytes"
+	"errors"
 	"fmt"
+	"github.com/edgexfoundry/go-mod-core-contracts/v2/dtos"
 	"gocv.io/x/gocv"
+	"image"
 	"image/color"
+	_ "image/jpeg"
 	"os"
 
 	"github.com/edgexfoundry/app-functions-sdk-go/v2/pkg"
@@ -37,6 +36,15 @@ func cvtImageToMat(img image.Image) (gocv.Mat, error) {
 }
 
 func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePipeline bool, result interface{}) {
+	if data == nil {
+		return false, errors.New("processImages: No data received")
+	}
+
+	event, ok := data.(dtos.Event)
+	if !ok {
+		return false, errors.New("processImages: didn't receive expect Event type")
+	}
+
 	// color for the rect when faces detected
 	blue := color.RGBA{0, 0, 255, 0}
 
@@ -49,15 +57,46 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 		return false, fmt.Errorf("reading cascade file: model/haarcascade_frontalface_default.xml")
 	}
 
-	if event, ok := data.(dtos.Event); ok {
-		reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(string(event.Readings[0].BinaryValue)))
-		img, _, err := image.Decode(reader)
+	//reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(string(event.Readings[0].BinaryValue)))
+	//reader := strings.NewReader(string(event.Readings[0].BinaryValue))
+	/*_, err := os.Lstat("tmp.jpg")
+	if err != nil {
+		if os.IsExist(err) {
+			os.Remove("tmp.jpg")
+		}
+	}
+
+	err = ioutil.WriteFile("tmp.jpg", event.Readings[0].BinaryValue, 0644)
+	if err != nil {
+		ctx.LoggingClient().Errorf("Failed to create image, error %s", err.Error())
+		return false, err
+	}
+
+	f, err := os.Open("tmp.jpg")
+	if err != nil {
+		ctx.LoggingClient().Errorf("Failed to open image file, error %s", err.Error())
+	}
+
+	img, formatName, err := image.Decode(f)
+	if err != nil {
+		ctx.LoggingClient().Errorf("Failed to decode image,format: %s, error %s", formatName, err.Error())
+	}*/
+
+	for _, reading := range event.Readings {
+		// For this to work the image/jpeg & image/png packages must be imported to register their decoder
+		imageData, imageType, err := image.Decode(bytes.NewReader(reading.BinaryValue))
+		ctx.LoggingClient().Debugf("Data received %s :\n", reading.BinaryValue)
+
 		if err != nil {
-			ctx.LoggingClient().Errorf("Error NewDecoder image, error %s", err.Error())
-			return false, err
+			return false, errors.New("processImages: unable to decode image: " + err.Error())
 		}
 
-		imgMat, err := cvtImageToMat(img)
+		// Since this is a example, we will just print put some stats from the images received
+		ctx.LoggingClient().Infof("Received Image from Device: %s, ResourceName: %s, Image Type: %s, Image Size: %s, Color in middle: %v\n",
+			reading.DeviceName, reading.ResourceName, imageType, imageData.Bounds().Size().String(),
+			imageData.At(imageData.Bounds().Size().X/2, imageData.Bounds().Size().Y/2))
+
+		imgMat, err := cvtImageToMat(imageData)
 		if err != nil {
 			ctx.LoggingClient().Errorf("Error transfer Image to gocv Mat , error %s", err.Error())
 			return false, err
