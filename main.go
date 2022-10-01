@@ -57,35 +57,9 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 		return false, fmt.Errorf("reading cascade file: model/haarcascade_frontalface_default.xml")
 	}
 
-	//reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(string(event.Readings[0].BinaryValue)))
-	//reader := strings.NewReader(string(event.Readings[0].BinaryValue))
-	/*_, err := os.Lstat("tmp.jpg")
-	if err != nil {
-		if os.IsExist(err) {
-			os.Remove("tmp.jpg")
-		}
-	}
-
-	err = ioutil.WriteFile("tmp.jpg", event.Readings[0].BinaryValue, 0644)
-	if err != nil {
-		ctx.LoggingClient().Errorf("Failed to create image, error %s", err.Error())
-		return false, err
-	}
-
-	f, err := os.Open("tmp.jpg")
-	if err != nil {
-		ctx.LoggingClient().Errorf("Failed to open image file, error %s", err.Error())
-	}
-
-	img, formatName, err := image.Decode(f)
-	if err != nil {
-		ctx.LoggingClient().Errorf("Failed to decode image,format: %s, error %s", formatName, err.Error())
-	}*/
-
 	for _, reading := range event.Readings {
 		// For this to work the image/jpeg & image/png packages must be imported to register their decoder
 		imageData, imageType, err := image.Decode(bytes.NewReader(reading.BinaryValue))
-		
 		if err != nil {
 			return false, errors.New("processImages: unable to decode image: " + err.Error())
 		}
@@ -100,6 +74,7 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 			ctx.LoggingClient().Errorf("Error transfer Image to gocv Mat , error %s", err.Error())
 			return false, err
 		}
+		
 		rects := classifier.DetectMultiScale(imgMat)
 		ctx.LoggingClient().Infof("found %d faces\n", len(rects))
 
