@@ -20,7 +20,7 @@ const (
 	serviceKey = "app-face-detect"
 )
 
-func cvtImageToMat(img image.Image) (gocv.Mat, error) {
+func cvtImageToMat(img image.Image, matType gocv.MatType) (gocv.Mat, error) {
 	bounds := img.Bounds()
 	x := bounds.Dx()
 	y := bounds.Dy()
@@ -32,7 +32,7 @@ func cvtImageToMat(img image.Image) (gocv.Mat, error) {
 			bytes = append(bytes, byte(b>>8), byte(g>>8), byte(r>>8))
 		}
 	}
-	return gocv.NewMatFromBytes(y, x, gocv.MatTypeCV8UC3, bytes)
+	return gocv.NewMatFromBytes(y, x, matType, bytes)
 }
 
 func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePipeline bool, result interface{}) {
@@ -53,12 +53,38 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 	defer classifier.Close()
 
 	if !classifier.Load("model/haarcascade_frontalface_default.xml") {
-		ctx.LoggingClient().Errorf("Error reading cascade file: model/haarcascade_frontalface_default.xml")
 		return false, fmt.Errorf("reading cascade file: model/haarcascade_frontalface_default.xml")
 	}
 
 	for _, reading := range event.Readings {
 		// For this to work the image/jpeg & image/png packages must be imported to register their decoder
+		config, _, err := image.DecodeConfig(bytes.NewReader(reading.BinaryValue))
+		if err != nil {
+			return false, fmt.Errorf("Failed to decode image config, error %s\n", err.Error())
+		}
+
+		var colorModel gocv.MatType
+		switch config.ColorModel {
+		case color.RGBAModel:
+			colorModel = gocv.MatTypeCV32FC3
+		case color.RGBA64Model:
+			colorModel = gocv.MatTypeCV64FC3
+		case color.NRGBAModel:
+			colorModel = gocv.MatTypeCV32FC3
+		case color.NRGBA64Model:
+			colorModel = gocv.MatTypeCV64FC3
+		case color.AlphaModel:
+			colorModel = gocv.MatTypeCV8UC3
+		case color.Alpha16Model:
+			colorModel = gocv.MatTypeCV16SC3
+		case color.GrayModel:
+			colorModel = gocv.MatTypeCV8UC3
+		case color.Gray16Model:
+			colorModel = gocv.MatTypeCV16SC3
+		default:
+			colorModel = gocv.MatTypeCV8UC3
+		}
+
 		imageData, imageType, err := image.Decode(bytes.NewReader(reading.BinaryValue))
 		if err != nil {
 			return false, errors.New("processImages: unable to decode image: " + err.Error())
@@ -69,12 +95,11 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 			reading.DeviceName, reading.ResourceName, imageType, imageData.Bounds().Size().String(),
 			imageData.At(imageData.Bounds().Size().X/2, imageData.Bounds().Size().Y/2))
 
-		imgMat, err := cvtImageToMat(imageData)
+		imgMat, err := cvtImageToMat(imageData, colorModel)
 		if err != nil {
-			ctx.LoggingClient().Errorf("Error transfer Image to gocv Mat , error %s", err.Error())
-			return false, err
+			return false, fmt.Errorf("Error transfer Image to gocv Mat , error %s\n", err.Error())
 		}
-		
+
 		rects := classifier.DetectMultiScale(imgMat)
 		ctx.LoggingClient().Infof("found %d faces\n", len(rects))
 
@@ -85,32 +110,6 @@ func DetectFace(ctx interfaces.AppFunctionContext, data interface{}) (continuePi
 
 		return true, imgMat
 	}
-
-	/*
-		config, format, err := image.DecodeConfig(reader)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("Width:", config.Width, "Height:", config.Height, "Format:", format)
-
-		switch config.ColorModel {
-		case color.RGBAModel:
-
-		case color.RGBA64Model:
-
-		case color.NRGBAModel:
-
-		case color.NRGBA64Model:
-		case color.AlphaModel:
-		case color.Alpha16Model:
-		case color.GrayModel:
-		case color.Gray16Model:
-
-		default:
-
-		}*/
-
-	//imgMat, _ := gocv.NewMatFromBytes(config.Height, config.Width, gocv.MatTypeCV8UC3, data.([]byte))
 
 	return false, nil
 }
