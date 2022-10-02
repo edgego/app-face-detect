@@ -1,172 +1,109 @@
-[Writable]
-LogLevel = "INFO"
-
-  [Writable.StoreAndForward]
-  Enabled = true
-  RetryInterval = "5m"
-  MaxRetryCount = 10
-
-  # The Pipeline section allows the functions pipeline to be specified via configuration
-  [Writable.Pipeline]
-  # If True, the incoming data to the functions pipeline will be []byte, i.e not marshaled to an Event
-  # This is useful when the incoming data isn't an EdgeX Event.
-  UseTargetTypeOfByteArray = false
-
-# InsecureSecrets are required for Store and Forward DB access and for authenticated HTTP exports and MQTT exports with
-# new MQTTSecretSend function when not using security services, i.e. Vault
-  [Writable.InsecureSecrets]
-    [Writable.InsecureSecrets.DB]
-    path = "redisdb"
-      [Writable.InsecureSecrets.DB.Secrets]
-      username = ""
-      password = ""
-    [Writable.InsecureSecrets.http]
-    path = "http"
-      [Writable.InsecureSecrets.http.Secrets]
-      headervalue = "<put your value here>"
-    [Writable.InsecureSecrets.mqtt]
-    path = "mqtt"
-      [Writable.InsecureSecrets.mqtt.Secrets]
-      username = ""
-      password = ""
-      cacert = ""
-      clientcert = ""
-      clientkey = ""
-    [Writable.InsecureSecrets.AES]
-    path = "aes"
-      [Writable.InsecureSecrets.AES.Secrets]
-      key = "217A24432646294A404E635266556A586E3272357538782F413F442A472D4B6150645367566B59703373367639792442264529482B4D6251655468576D5A7134"
-  [Writable.Telemetry]
-  Interval = "30s"
-  PublishTopicPrefix  = "edgex/telemetry" # /<service-name>/<metric-name> will be added to this Publish Topic prefix
-    [Writable.Telemetry.Metrics] # All service's metric names must be present in this list.
-    MessagesReceived = false
-    InvalidMessagesReceived = false
-    PipelineMessagesProcessed = false # Pipeline IDs are added as the tag for the metric for each pipeline defined
-    PipelineMessageProcessingTime = false # Pipeline IDs are added as the tag for the metric for each pipeline defined
-    PipelineProcessingErrors = false # Pipeline IDs are added as the tag for the metric for each pipeline defined
-    HttpExportSize = false # Single metric used for all HTTP Exports
-    MqttExportSize = false # BrokerAddress and Topic are added as the tag for this metric for each MqttExport defined
-    [Writable.Telemetry.Tags] # Contains the service level tags to be attached to all the service's metrics
-#    Gateway="my-iot-gateway" # Tag must be added here or via Consul Env Override can only chnage existing value, not added new ones.
-
-[Service]
-HealthCheckInterval = "10s"
-Host = "app-face-detect"
-Port = 48098
-ServerBindAddr = "" # if blank, uses default Go behavior https://golang.org/pkg/net/#Listen
-StartupMsg = "app-face-detect has Started"
-MaxResultCount = 0 # Not curently used by App Services.
-MaxRequestSize = 0 # Not curently used by App Services.
-RequestTimeout = "5s"
-  [Service.CORSConfiguration]
-  EnableCORS = false
-  CORSAllowCredentials = false
-  CORSAllowedOrigin = "https://localhost"
-  CORSAllowedMethods = "GET, POST, PUT, PATCH, DELETE"
-  CORSAllowedHeaders = "Authorization, Accept, Accept-Language, Content-Language, Content-Type, X-Correlation-ID"
-  CORSExposeHeaders = "Cache-Control, Content-Language, Content-Length, Content-Type, Expires, Last-Modified, Pragma, X-Correlation-ID"
-  CORSMaxAge = 3600
-
-[Registry]
-Host = "localhost"
-Port = 8500
-Type = "consul"
-
-# Database is require when Store and Forward is enabled or when using Redis for the Messagebus
-# Note when running in docker from compose file set the following environment variables:
-# - Database_Host: edgex-redis
-[Database]
-Type = "redisdb"
-Host = "edge-redis-ha-announce-0"
-Port = 6379
-Timeout = "30s"
-
-# SecretStore is required when Store and Forward is enabled and running with security
-# so Database credentials can be pulled from Vault. Also now require when running with secure Consul
-# Note when running in docker from compose file set the following environment variables:
-#   - SecretStore_Host: edgex-vault
-[SecretStore]
-Type = "vault"
-Host = "localhost"
-Port = 8200
-Path = "app-sample/"
-Protocol = "http"
-RootCaCertPath = ""
-ServerName = ""
-SecretsFile = ""
-DisableScrubSecretsFile = false
-TokenFile = "/tmp/edgex/secrets/app-sample/secrets-token.json"
-  [SecretStore.Authentication]
-  AuthType = "X-Vault-Token"
-  [SecretStore.RuntimeTokenProvider]
-  Enabled = false
-  Protocol = "https"
-  Host = "localhost"
-  Port = 59841
-  TrustDomain = "edgexfoundry.org"
-  EndpointSocket = "/tmp/edgex/secrets/spiffe/public/api.sock"
-  RequiredSecrets = "redisdb"
-
-# Note Core Metadata is the only required client as it is now used for the version check
-# The other clients are only needed if the client intrface is being used by one of the configured functions.
-[Clients]
-  # Used for version check on start-up
-  # Also used for DeviceSevice, DeviceProfile and Device clients, which are not currently used by any configurable functions
-  [Clients.core-metadata]
-  Protocol = "http"
-  Host = "edge-core-metadata"
-  Port = 59881
-
-  # Used for Event client which is used by PushToCoreData function
-  [Clients.core-data]
-  Protocol = "http"
-  Host = "edge-core-data"
-  Port = 59880
-
-  # Used for Command client, which is not currently used by any configurable functions
-  [Clients.core-command]
-  Protocol = "http"
-  Host = "edge-core-command"
-  Port = 59882
-
-  # Used for Notification and Subscription client, which are not currently used by any configurable functions
-  [Clients.support-notifications]
-  Protocol = "http"
-  Host = "edge-support-notifications"
-  Port = 59860
-
-[Trigger]
-Type="edgex-messagebus"
-  [Trigger.EdgexMessageBus]
-  Type = "redis"
-    [Trigger.EdgexMessageBus.SubscribeHost]
-    Host = "edge-redis-ha-announce-0"
-    Port = 6379
-    Protocol = "redis"
-    SubscribeTopics="edgex/events/#"
-    [Trigger.EdgexMessageBus.PublishHost]
-    Host = "edge-redis-ha-announce-0"
-    Port = 6379
-    Protocol = "redis"
-    PublishTopic ="example"
-    [Trigger.EdgexMessageBus.Optional]
-    authmode = "usernamepassword"  # required for redis messagebus (secure or insecure).
-    secretname = "redisdb"
-    # Default MQTT Specific options that need to be here to enable evnironment variable overrides of them
-    ClientId ="app-sample"
-    Qos =  "0" # Quality of Sevice values are 0 (At most once), 1 (At least once) or 2 (Exactly once)
-    KeepAlive =  "10" # Seconds (must be 2 or greater)
-    Retained = "false"
-    AutoReconnect = "true"
-    ConnectTimeout = "5" # Seconds
-    SkipCertVerify = "false"
-    # Default NATS Specific options that need to be here to enable evnironment variable overrides of them
-    Format = "nats"
-    RetryOnFailedConnect = "true"
-    QueueGroup = ""
-    Durable = ""
-    AutoProvision = "true"
-    Deliver = "new"
-    DefaultPubRetryAttempts = "2"
-    Subject = "edgex/#" # Required for NATS Jetstram only for stream autoprovsioning
+    MaxEventSize = 0
+    [Writable]
+       LogLevel = 'INFO'
+       [Writable.InsecureSecrets]
+          [Writable.InsecureSecrets.DB]
+             path = "redisdb"
+             [Writable.InsecureSecrets.DB.Secrets]
+               username = ""
+               password = ""
+       [Writable.Reading]
+          ReadingUnits = true
+    [Service]
+       HealthCheckInterval = '10s'
+       Host = 'app-face-detect'
+       Port = 48098
+       ServerBindAddr = '0.0.0.0'
+       StartupMsg = 'app-face-detect started'
+       MaxRequestSize = 0
+       RequestTimeout = '5s'
+       [Service.CORSConfiguration]
+          EnableCORS = false
+          CORSAllowCredentials = false
+          CORSAllowedOrigin = "https://localhost"
+          CORSAllowedMethods = "GET, POST, PUT, PATCH, DELETE"
+          CORSAllowedHeaders = "Authorization, Accept, Accept-Language, Content-Language, Content-Type, X-Correlation-ID"
+          CORSExposeHeaders = "Cache-Control, Content-Language, Content-Length, Content-Type, Expires, Last-Modified, Pragma, X-Correlation-ID"
+          CORSMaxAge = 3600
+    [Registry]
+       Host = 'localhost'
+       Port = 8500
+       Type = 'consul'
+    [Clients]
+        [Clients.core-data]
+          Protocol = 'http'
+          Host = 'edge-core-data'
+          Port = 59880
+       [Clients.core-metadata]
+          Protocol = 'http'
+          Host = 'edge-core-metadata'
+          Port = 59881
+    [MessageQueue]
+       Protocol = 'redis'
+       Host = 'edge-redis-ha-announce-0'
+       Port = 6379
+       Type = 'redis'
+       AuthMode = 'usernamepassword'
+       SecretName = "redisdb"
+       PublishTopicPrefix = 'edgex/events/device'
+    [SecretStore]
+       Type = 'vault'
+       Host = 'edge-vault'
+       Port = 8200
+       Path = 'app-face-detect/'
+       Protocol = 'http'
+       RootCaCertPath = ''
+       ServerName = ''
+       TokenFile = '/tmp/edgex/secrets/app-face-detect/secrets-token.json'
+       [SecretStore.Authentication]
+         AuthType = 'X-Vault-Token'
+    [Device]
+       DataTransform = true
+       MaxCmdOps = 128
+       MaxCmdValueLen = 256
+       ProfilesDir = ''
+       DevicesDir = ''
+       UpdateLastConnected = true
+       Labels = []
+       EnableAsyncReadings = true
+       AsyncBufferSize = 16
+       UseMessageBus = true
+       [Device.Discovery]
+          Enabled = false
+          Interval = "1h"
+    [ApplicationSettings]
+       DeviceNames = "camera1,camera2"
+    [Trigger]
+      Type="edgex-messagebus"
+      [Trigger.EdgexMessageBus]
+        Type = "redis"
+        [Trigger.EdgexMessageBus.SubscribeHost]
+           Host = "edge-redis-ha-announce-0"
+           Port = 6379
+           Protocol = "redis"
+           SubscribeTopics="edgex/events/#"
+        [Trigger.EdgexMessageBus.PublishHost]
+          Host = "edge-redis-ha-announce-0"
+          Port = 6379
+          Protocol = "redis"
+          PublishTopic="rules-events"
+        [Trigger.EdgexMessageBus.Optional]
+          authmode = "usernamepassword"  # required for redis messagebus (secure or insecure).
+          secretname = "redisdb"
+          # Default MQTT Specific options that need to be here to enable evnironment variable overrides of them
+          ClientId ="app-rules-engine"
+          Qos =  "0" # Quality of Sevice values are 0 (At most once), 1 (At least once) or 2 (Exactly once)
+          KeepAlive =  "10" # Seconds (must be 2 or greater)
+          Retained = "false"
+          AutoReconnect = "true"
+          ConnectTimeout = "5" # Seconds
+          SkipCertVerify = "false"
+          # Default NATS Specific options that need to be here to enable evnironment variable overrides of them
+          Format = "nats"
+          RetryOnFailedConnect = "true"
+          QueueGroup = ""
+          Durable = ""
+          AutoProvision = "true"
+          Deliver = "new"
+          DefaultPubRetryAttempts = "2"
+          Subject = "edgex/#" # Required for NATS Jetstram only for stream autoprovsioning
